@@ -120,6 +120,9 @@ export default function Admin() {
     if (res.ok) {
       const { sentTo } = await res.json()
       flash(`✅ Stats emailed to ${sentTo}`)
+    } else if (res.status === 429) {
+      const { error } = await res.json()
+      flash(`⏳ ${error}`)
     } else {
       const txt = await res.text()
       flash(`❌ Failed: ${txt}`)
