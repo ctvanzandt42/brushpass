@@ -106,7 +106,7 @@ export default function Dashboard() {
                           </td>
                           <td className="name-cell">
                             {s.display_name}
-                            {!s.is_active && <span className="alumni-badge" title="No longer on team">alumni</span>}
+                            {!s.is_active && <span className="alumni-badge" title="No longer on team">emeritus</span>}
                             {s.is_angel && <span className="angel-badge" title="Manually added">😇</span>}
                           </td>
                           <td><span className="wl">{s.w}-{s.l}</span></td>
