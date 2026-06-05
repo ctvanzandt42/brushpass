@@ -12,6 +12,7 @@ export default function Admin() {
   const [loading, setLoading] = useState(true)
   const [seedSaving, setSeedSaving] = useState({}) // profile_id -> bool
   const [msg, setMsg] = useState('')
+  const [emailSending, setEmailSending] = useState(false)
 
   useEffect(() => {
     if (profile) {
@@ -103,6 +104,26 @@ export default function Admin() {
     setSeedEdits(prev => { const n = { ...prev }; delete n[profileId]; return n })
     setSeedSaving(prev => ({ ...prev, [profileId]: false }))
     flash('Saved!')
+  }
+
+  async function sendBackup() {
+    setEmailSending(true)
+    const { data: { session } } = await supabase.auth.getSession()
+    const res = await fetch(
+      `${process.env.REACT_APP_SUPABASE_URL}/functions/v1/email-stats`,
+      {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      }
+    )
+    setEmailSending(false)
+    if (res.ok) {
+      const { sentTo } = await res.json()
+      flash(`✅ Stats emailed to ${sentTo}`)
+    } else {
+      const txt = await res.text()
+      flash(`❌ Failed: ${txt}`)
+    }
   }
 
   function flash(text) {
@@ -199,6 +220,22 @@ export default function Admin() {
             </div>
           )}
           {msg && <p className="success-msg" style={{ marginTop: 12 }}>{msg}</p>}
+        </section>
+
+        {/* ---- Email Backup ---- */}
+        <section className="log-section">
+          <h2 className="section-title">Email Stats Backup</h2>
+          <p className="muted" style={{ marginBottom: 16 }}>
+            Sends a full stats snapshot — leaderboard and recent games — to your email address.
+          </p>
+          <button
+            className="btn-magic"
+            style={{ width: 'auto', padding: '11px 28px' }}
+            onClick={sendBackup}
+            disabled={emailSending}
+          >
+            {emailSending ? '📤 Sending…' : '📧 Email stats backup'}
+          </button>
         </section>
 
         {/* ---- Invite Code ---- */}
