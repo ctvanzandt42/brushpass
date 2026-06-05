@@ -27,12 +27,31 @@ export function AuthProvider({ children }) {
   }, [])
 
   async function fetchProfile(userId) {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('profiles')
       .select('*, teams(*)')
       .eq('id', userId)
-      .single()
-    setProfile(data)
+      .maybeSingle()
+
+    // If no profile row exists (e.g. manually deleted), create one and retry
+    if (!data && !error) {
+      const { data: { user } } = await supabase.auth.getUser()
+      await supabase.from('profiles').insert({
+        id: userId,
+        display_name: user?.user_metadata?.full_name
+          || user?.user_metadata?.name
+          || user?.email?.split('@')[0]
+          || null
+      })
+      const { data: retried } = await supabase
+        .from('profiles')
+        .select('*, teams(*)')
+        .eq('id', userId)
+        .maybeSingle()
+      setProfile(retried)
+    } else {
+      setProfile(data)
+    }
     setLoading(false)
   }
 
