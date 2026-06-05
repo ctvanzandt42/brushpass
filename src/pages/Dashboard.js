@@ -35,7 +35,7 @@ export default function Dashboard() {
     // Load all members (including inactive + ghosts) for display metadata
     const { data: allMembers } = await supabase
       .from('profiles')
-      .select('id, display_name, is_active, is_ghost')
+      .select('id, display_name, is_active, is_angel')
       .eq('team_id', profile.team_id)
 
     // Filter out any nulls (cross-team noise from RLS)
@@ -107,7 +107,7 @@ export default function Dashboard() {
                           <td className="name-cell">
                             {s.display_name}
                             {!s.is_active && <span className="alumni-badge" title="No longer on team">alumni</span>}
-                            {s.is_ghost && <span className="ghost-badge" title="Manually added">👻</span>}
+                            {s.is_angel && <span className="angel-badge" title="Manually added">😇</span>}
                           </td>
                           <td><span className="wl">{s.w}-{s.l}</span></td>
                           <td>

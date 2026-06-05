@@ -33,7 +33,7 @@ export default function Admin() {
   async function loadMembers() {
     const { data } = await supabase
       .from('profiles')
-      .select('id, display_name, is_admin, is_active, is_ghost, created_at')
+      .select('id, display_name, is_admin, is_active, is_angel, created_at')
       .eq('team_id', profile.team_id)
       .order('is_active', { ascending: false })
       .order('created_at')
@@ -61,7 +61,7 @@ export default function Admin() {
   async function toggleActive(memberId, currentVal) {
     await supabase.from('profiles').update({ is_active: !currentVal }).eq('id', memberId)
     await loadMembers()
-    flash(currentVal ? 'Marked as alumni.' : 'Marked as active.')
+    flash(currentVal ? 'Marked as emeritus.' : 'Marked as active.')
   }
 
   async function removeMember(memberId) {
@@ -75,7 +75,7 @@ export default function Admin() {
     await supabase.from('stat_seeds').delete().eq('profile_id', memberId)
     await supabase.from('profiles').delete().eq('id', memberId)
     await loadAll()
-    flash('Ghost member deleted.')
+    flash('Member deleted.')
   }
 
   // ---- Ghost member creation ----
@@ -92,8 +92,8 @@ export default function Admin() {
         id: newId,
         display_name: ghostName.trim(),
         team_id: profile.team_id,
-        is_ghost: true,
-        is_active: false, // alumni by default
+        is_angel: true,
+        is_active: false, // emeritus by default
         is_admin: false,
       })
       .select()
@@ -104,7 +104,7 @@ export default function Admin() {
     } else {
       setGhostName('')
       await loadAll()
-      flash(`👻 "${data.display_name}" added. Set their stats in the Seed Stats table below.`)
+      flash(`😇 "${data.display_name}" added. Set their stats in the Seed Stats table below.`)
     }
     setGhostAdding(false)
   }
@@ -226,7 +226,7 @@ export default function Admin() {
 
             {/* Alumni */}
             {alumniMembers.length > 0 && (<>
-              <div className="member-group-label" style={{ marginTop: 16 }}>Alumni / Inactive</div>
+              <div className="member-group-label" style={{ marginTop: 16 }}>Emeritus</div>
               <div className="members-list">
                 {alumniMembers.map(m => (
                   <MemberRow key={m.id} m={m} currentId={profile.id}
@@ -256,7 +256,7 @@ export default function Admin() {
                 />
                 <button type="submit" className="action-btn" disabled={ghostAdding}
                   style={{ whiteSpace: 'nowrap' }}>
-                  {ghostAdding ? '…' : '👻 Add ghost'}
+                  {ghostAdding ? '…' : '😇 Add member'}
                 </button>
               </form>
             </div>
@@ -291,8 +291,8 @@ export default function Admin() {
                     <tr key={m.id} className={isDirty(m.id) ? 'seed-row dirty' : 'seed-row'}>
                       <td className="seed-name">
                         {m.display_name || '(no name)'}
-                        {m.is_ghost && <span className="ghost-badge">👻</span>}
-                        {!m.is_active && !m.is_ghost && <span className="alumni-badge">alumni</span>}
+                        {m.is_angel && <span className="angel-badge">😇</span>}
+                        {!m.is_active && !m.is_angel && <span className="alumni-badge">alumni</span>}
                         {m.id === profile.id && <span className="you-badge">you</span>}
                       </td>
                       {['w','l','sm_w','sm_l','streak_count'].map(field => (
@@ -361,7 +361,7 @@ function MemberRow({ m, currentId, onToggleAdmin, onToggleActive, onRemove, onDe
     <div className="member-row">
       <span className="member-name">
         {m.display_name || '(no name)'}
-        {m.is_ghost && <span className="ghost-badge">👻</span>}
+        {m.is_angel && <span className="angel-badge">😇</span>}
         {m.is_admin && <span className="admin-badge">admin</span>}
         {m.id === currentId && <span className="you-badge">you</span>}
       </span>
@@ -369,18 +369,18 @@ function MemberRow({ m, currentId, onToggleAdmin, onToggleActive, onRemove, onDe
         {/* Active toggle — always available except for yourself */}
         {m.id !== currentId && (
           <button className="action-btn" onClick={onToggleActive}>
-            {m.is_active ? 'Mark alumni' : 'Restore'}
+            {m.is_active ? 'Mark emeritus' : 'Restore'}
           </button>
         )}
         {/* Admin toggle — real users only, not yourself */}
-        {!m.is_ghost && m.id !== currentId && (
+        {!m.is_angel && m.id !== currentId && (
           <button className="action-btn" onClick={onToggleAdmin}>
             {m.is_admin ? 'Remove admin' : 'Make admin'}
           </button>
         )}
         {/* Ghost: delete entirely; Real: remove from team */}
         {m.id !== currentId && (
-          m.is_ghost
+          m.is_angel
             ? <button className="action-btn danger-btn" onClick={onDeleteGhost}>Delete</button>
             : <button className="action-btn danger-btn" onClick={onRemove}>Remove</button>
         )}

@@ -698,7 +698,7 @@ select option { background: var(--surface2); color: var(--text); }
 /* ============================================================
    ALUMNI / GHOST BADGES + MEMBER GROUPS
 ============================================================ */
-.alumni-badge {
+.emeritus-badge {
   font-size: 0.7rem;
   background: rgba(122,122,140,0.15);
   color: var(--muted);
@@ -709,7 +709,7 @@ select option { background: var(--surface2); color: var(--text); }
   letter-spacing: 0.05em;
 }
 
-.ghost-badge {
+.angel-badge {
   font-size: 0.85rem;
 }
 

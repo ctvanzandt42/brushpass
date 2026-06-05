@@ -19,7 +19,7 @@ export function computeStats(gamePlayers, seeds = [], allMembers = []) {
     memberMeta[m.id] = {
       display_name: m.display_name ?? 'Unknown',
       is_active: m.is_active ?? true,
-      is_ghost: m.is_ghost ?? false,
+      is_angel: m.is_angel ?? false,
     }
   }
 
@@ -32,7 +32,7 @@ export function computeStats(gamePlayers, seeds = [], allMembers = []) {
         profile_id: pid,
         display_name: gp.profiles?.display_name ?? memberMeta[pid]?.display_name ?? 'Unknown',
         is_active: memberMeta[pid]?.is_active ?? true,
-        is_ghost: memberMeta[pid]?.is_ghost ?? false,
+        is_angel: memberMeta[pid]?.is_angel ?? false,
         entries: [],
       }
     }
@@ -46,13 +46,13 @@ export function computeStats(gamePlayers, seeds = [], allMembers = []) {
         profile_id: m.id,
         display_name: m.display_name ?? 'Unknown',
         is_active: m.is_active ?? true,
-        is_ghost: m.is_ghost ?? false,
+        is_angel: m.is_angel ?? false,
         entries: [],
       }
     }
   }
 
-  return Object.values(byProfile).map(({ profile_id, display_name, is_active, is_ghost, entries }) => {
+  return Object.values(byProfile).map(({ profile_id, display_name, is_active, is_angel, entries }) => {
     const seed = seedMap[profile_id]
 
     entries.sort((a, b) => new Date(a.games?.played_at) - new Date(b.games?.played_at))
@@ -90,7 +90,7 @@ export function computeStats(gamePlayers, seeds = [], allMembers = []) {
       profile_id,
       display_name,
       is_active,
-      is_ghost,
+      is_angel,
       w, l, smW, smL,
       streak: streakLabel,
       gamesPlayed: w + l,
