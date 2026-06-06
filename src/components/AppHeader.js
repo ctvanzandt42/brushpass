@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import { useTheme } from '../lib/theme'
 
 export default function AppHeader({ title, children }) {
@@ -5,10 +6,10 @@ export default function AppHeader({ title, children }) {
 
   return (
     <header className="app-header">
-      <div className="header-left">
+      <Link to="/" className="header-left" style={{ textDecoration: 'none' }}>
         <span className="logo-icon-sm">🕵️</span>
         <span className="header-team">{title}</span>
-      </div>
+      </Link>
       <nav className="header-nav">
         {children}
         <button

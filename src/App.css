@@ -260,7 +260,7 @@ body {
   z-index: 100;
 }
 
-.header-left { display: flex; align-items: center; gap: 10px; }
+.header-left { display: flex; align-items: center; gap: 10px; color: inherit; }
 .logo-icon-sm { font-size: 1.4rem; }
 .header-team { font-weight: 700; font-size: 1.05rem; letter-spacing: -0.02em; }
 
