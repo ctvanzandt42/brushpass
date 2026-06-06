@@ -26,7 +26,7 @@ export default function Dashboard() {
   }
 
   async function loadTeam(teamId) {
-    const [{ data: gamePlayers }, { data: seeds }, { data: allMembers }, { data: games }] =
+    const [{ data: gamePlayers }, { data: seeds }, { data: memberRows }, { data: games }] =
       await Promise.all([
         supabase
           .from('game_players')
@@ -38,9 +38,9 @@ export default function Dashboard() {
           .select('*, profiles(display_name)')
           .eq('team_id', teamId),
         supabase
-          .from('profiles')
-          .select('id, display_name, is_angel')
-          .in('id', await teamMemberIds(teamId)),
+          .from('team_members')
+          .select('is_active, profile_id, profiles(id, display_name, is_angel)')
+          .eq('team_id', teamId),
         supabase
           .from('games')
           .select('*, game_players(*, profiles(display_name))')
@@ -49,19 +49,19 @@ export default function Dashboard() {
           .limit(5),
       ])
 
+    // Merge is_active (team_members) with is_angel/display_name (profiles) for computeStats
+    const allMembers = (memberRows || []).map(r => ({
+      id: r.profile_id,
+      display_name: r.profiles?.display_name,
+      is_active: r.is_active,
+      is_angel: r.profiles?.is_angel ?? false,
+    }))
+
     const filtered = (gamePlayers || []).filter(gp => gp.games?.team_id === teamId)
     return {
-      stats: computeStats(filtered, seeds || [], allMembers || []),
+      stats: computeStats(filtered, seeds || [], allMembers),
       recentGames: games || [],
     }
-  }
-
-  async function teamMemberIds(teamId) {
-    const { data } = await supabase
-      .from('team_members')
-      .select('profile_id')
-      .eq('team_id', teamId)
-    return (data || []).map(r => r.profile_id)
   }
 
   async function deleteGame(gameId, teamId) {
