@@ -21,48 +21,60 @@ function escapeHtml(s: string | null | undefined): string {
 }
 
 Deno.serve(async (req) => {
-  // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
-
-  // Only allow POST
   if (req.method !== 'POST') {
     return new Response('Method not allowed', { status: 405, headers: corsHeaders })
   }
 
-  // Authenticate the calling user via their JWT
   const authHeader = req.headers.get('Authorization')
   if (!authHeader) return new Response('Unauthorized', { status: 401, headers: corsHeaders })
 
-  // Client scoped to the calling user (respects RLS)
   const userClient = createClient(SUPABASE_URL, Deno.env.get('SUPABASE_ANON_KEY')!, {
     global: { headers: { Authorization: authHeader } }
   })
-
-  // Service client for fetching auth.users email
   const serviceClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 
-  // Get the caller's user id from their JWT
   const { data: { user: callerUser } } = await userClient.auth.getUser()
   if (!callerUser) return new Response('Unauthorized', { status: 401, headers: corsHeaders })
 
-  // Verify the caller is an admin
-  const { data: callerProfile, error: profErr } = await userClient
+  // Read optional team_id from request body
+  let requestedTeamId: string | null = null
+  try {
+    const body = await req.json()
+    requestedTeamId = body?.team_id ?? null
+  } catch { /* no body is fine */ }
+
+  // Get caller's profile
+  const { data: callerProfile } = await userClient
     .from('profiles')
-    .select('id, display_name, team_id, is_admin, teams(name)')
+    .select('id, display_name')
     .eq('id', callerUser.id)
     .single()
 
-  if (profErr) {
-    return new Response(`Profile fetch error: ${JSON.stringify(profErr)}`, { status: 403, headers: corsHeaders })
-  }
-  if (!callerProfile?.is_admin) {
-    return new Response(`Not admin. is_admin=${callerProfile?.is_admin}, team_id=${callerProfile?.team_id}`, { status: 403, headers: corsHeaders })
+  if (!callerProfile) return new Response('Profile not found', { status: 403, headers: corsHeaders })
+
+  // Get caller's memberships (admin ones only)
+  const { data: memberships } = await userClient
+    .from('team_members')
+    .select('team_id, is_admin, teams(id, name)')
+    .eq('profile_id', callerUser.id)
+    .eq('is_admin', true)
+
+  if (!memberships?.length) {
+    return new Response('Not an admin of any team', { status: 403, headers: corsHeaders })
   }
 
-  const teamId = callerProfile.team_id
-  const teamName = (callerProfile.teams as any)?.name ?? 'Your Team'
+  // Use requested team if valid, otherwise first admin team
+  const membership = requestedTeamId
+    ? memberships.find(m => m.team_id === requestedTeamId)
+    : memberships[0]
+
+  if (!membership) return new Response('Not an admin of that team', { status: 403, headers: corsHeaders })
+
+  const teamId = membership.team_id
+  const teamName = (membership.teams as any)?.name ?? 'Your Team'
 
   // ---- Rate limit: max one email per 60 minutes per user ----
   const RATE_LIMIT_MINUTES = 60
@@ -83,18 +95,22 @@ Deno.serve(async (req) => {
     }
   }
 
-  // Update rate limit timestamp (upsert)
   await serviceClient
     .from('function_rate_limits')
     .upsert({ profile_id: callerProfile.id, last_called_at: new Date().toISOString() })
 
-  // Fetch all profiles on the team
-  const { data: members } = await userClient
-    .from('profiles')
-    .select('id, display_name')
+  // Fetch all members of the team (via team_members join)
+  const { data: memberRows } = await userClient
+    .from('team_members')
+    .select('profile_id, profiles(id, display_name)')
     .eq('team_id', teamId)
 
-  // Fetch all game_players for the team
+  const memberMap: Record<string, string> = {}
+  for (const r of memberRows ?? []) {
+    memberMap[r.profile_id] = (r.profiles as any)?.display_name ?? r.profile_id
+  }
+
+  // Fetch game_players for the team
   const { data: gamePlayers } = await userClient
     .from('game_players')
     .select('profile_id, role, won, games(played_at, team_id)')
@@ -114,7 +130,7 @@ Deno.serve(async (req) => {
     .order('played_at', { ascending: false })
     .limit(20)
 
-  // Get admin's email from auth.users (requires service role)
+  // Get admin's email
   const { data: { user: adminUser } } = await serviceClient.auth.admin.getUserById(callerProfile.id)
   const adminEmail = adminUser?.email
   if (!adminEmail) return new Response('Could not determine admin email', { status: 400, headers: corsHeaders })
@@ -122,9 +138,6 @@ Deno.serve(async (req) => {
   // ---- Compile stats ----
   const seedMap: Record<string, any> = {}
   for (const s of seeds ?? []) seedMap[s.profile_id] = s
-
-  const memberMap: Record<string, string> = {}
-  for (const m of members ?? []) memberMap[m.id] = m.display_name ?? m.id
 
   const filtered = (gamePlayers ?? []).filter((gp: any) => gp.games?.team_id === teamId)
 
@@ -139,7 +152,6 @@ Deno.serve(async (req) => {
     }
   }
 
-  // Include seed-only members
   for (const s of seeds ?? []) {
     if (!statsByProfile[s.profile_id]) statsByProfile[s.profile_id] = { w: 0, l: 0, smW: 0, smL: 0, entries: [] }
   }
@@ -153,7 +165,6 @@ Deno.serve(async (req) => {
     const gp = totalW + totalL
     const pct = gp > 0 ? Math.round((totalW / gp) * 100) : 0
 
-    // Streak
     let streakLabel = '—'
     if (s.entries.length > 0) {
       s.entries.sort((a: any, b: any) => new Date(a.games?.played_at).getTime() - new Date(b.games?.played_at).getTime())
@@ -252,7 +263,6 @@ Deno.serve(async (req) => {
 </body>
 </html>`
 
-  // ---- Send via Resend ----
   const resendRes = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: {

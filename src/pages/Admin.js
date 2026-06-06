@@ -188,7 +188,11 @@ export default function Admin() {
     const { data: { session } } = await supabase.auth.getSession()
     const res = await fetch(
       `${process.env.REACT_APP_SUPABASE_URL}/functions/v1/email-stats`,
-      { method: 'POST', headers: { Authorization: `Bearer ${session.access_token}` } }
+      {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ team_id: selectedTeamId }),
+      }
     )
     setEmailSending(false)
     if (res.ok) {
