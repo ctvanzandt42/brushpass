@@ -73,6 +73,7 @@ export default function Dashboard() {
         {profile?.is_admin && (
           <Link to="/admin" className="nav-link">Admin</Link>
         )}
+        <Link to="/history" className="nav-link">History</Link>
         <Link to="/log" className="nav-link btn-log">+ Log Game</Link>
         <button onClick={signOut} className="nav-link sign-out-btn">Sign out</button>
       </AppHeader>
@@ -135,10 +136,7 @@ export default function Dashboard() {
             </section>
 
             <section className="recent-section">
-              <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 16 }}>
-                <h2 className="section-title" style={{ marginBottom: 0 }}>Recent Games</h2>
-                {recentGames.length > 0 && <Link to="/history" className="nav-link" style={{ fontSize: '0.85rem' }}>View all →</Link>}
-              </div>
+              <h2 className="section-title">Recent Games</h2>
               {recentGames.length === 0 ? (
                 <p className="muted">No games yet.</p>
               ) : (
