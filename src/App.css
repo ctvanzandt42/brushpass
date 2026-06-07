@@ -14,8 +14,10 @@
   --accent-dim: rgba(232, 197, 71, 0.12);
   --red: #e85454;
   --red-dim: rgba(232, 84, 84, 0.15);
+  --red-strong: rgba(232, 84, 84, 0.42);
   --blue: #5490e8;
   --blue-dim: rgba(84, 144, 232, 0.15);
+  --blue-strong: rgba(84, 144, 232, 0.42);
   --green: #54c98a;
   --radius: 10px;
   --font: 'Syne', sans-serif;
@@ -36,8 +38,10 @@
   --accent-dim: rgba(154, 114, 0, 0.1);
   --red: #c83232;
   --red-dim: rgba(200, 50, 50, 0.1);
+  --red-strong: rgba(200, 50, 50, 0.24);
   --blue: #2458b8;
   --blue-dim: rgba(36, 88, 184, 0.1);
+  --blue-strong: rgba(36, 88, 184, 0.24);
   --green: #1e8c5c;
 }
 
@@ -961,15 +965,35 @@ select option { background: var(--surface2); color: var(--text); }
 .play-turn-banner .sign-out-btn { position: absolute; right: 0; font-size: 0.78rem; padding: 6px 12px; }
 .play-turn-pill {
   display: inline-block;
-  padding: 8px 22px;
-  border-radius: 20px;
-  font-size: 0.85rem;
-  font-weight: 700;
+  padding: 11px 30px;
+  border-radius: 24px;
+  font-size: 1rem;
+  font-weight: 800;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.07em;
+  border: 2px solid transparent;
 }
-.play-turn-red { background: var(--red-dim); color: var(--red); }
-.play-turn-blue { background: var(--blue-dim); color: var(--blue); }
+.play-turn-red { background: var(--red-strong); color: var(--red); border-color: var(--red); }
+.play-turn-blue { background: var(--blue-strong); color: var(--blue); border-color: var(--blue); }
+
+/* Pulses continuously while it's the viewer's own turn — hard to miss */
+.play-turn-pill-mine.play-turn-red { animation: turnPulseRed 1.8s ease-in-out infinite; }
+.play-turn-pill-mine.play-turn-blue { animation: turnPulseBlue 1.8s ease-in-out infinite; }
+@keyframes turnPulseRed {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(232, 84, 84, 0.5); transform: scale(1); }
+  50%      { box-shadow: 0 0 0 10px rgba(232, 84, 84, 0); transform: scale(1.035); }
+}
+@keyframes turnPulseBlue {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(84, 144, 232, 0.5); transform: scale(1); }
+  50%      { box-shadow: 0 0 0 10px rgba(84, 144, 232, 0); transform: scale(1.035); }
+}
+
+/* One-shot flash that plays whenever the active turn changes */
+.play-turn-flash { animation: turnChangeFlash 0.7s cubic-bezier(.22, .8, .3, 1); }
+@keyframes turnChangeFlash {
+  0%   { transform: scale(1.22); filter: brightness(1.6); }
+  100% { transform: scale(1); filter: brightness(1); }
+}
 
 .play-clue-banner {
   display: flex;
@@ -994,6 +1018,7 @@ select option { background: var(--surface2); color: var(--text); }
 @media (max-width: 560px) { .play-board { gap: 6px; } }
 
 .play-card {
+  position: relative;
   aspect-ratio: 4 / 3;
   display: flex;
   align-items: center;
@@ -1031,28 +1056,75 @@ select option { background: var(--surface2); color: var(--text); }
 }
 .play-card-tappable:active { transform: translateY(0) scale(0.97); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12); }
 
+/* Voting — operatives point at a card before anyone commits to the guess */
+.play-card-voted { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-dim); }
+.play-card-votes {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: flex;
+  gap: 3px;
+}
+.play-vote-badge {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.66rem;
+  font-weight: 800;
+  color: var(--bg);
+  background: var(--accent);
+  border: 1.5px solid var(--surface);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+.play-confirm-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  background: var(--surface);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  padding: 12px 18px;
+}
+.play-confirm-text { font-size: 0.92rem; font-weight: 700; }
+.play-confirm-banner .btn-magic { width: auto; padding: 9px 22px; }
+
+/* One-shot pop that plays on the card(s) just revealed, so a flip reads
+   as an event rather than something you have to notice on your own */
+.play-card-flash { animation: cardRevealFlash 0.85s cubic-bezier(.22, .8, .3, 1); }
+@keyframes cardRevealFlash {
+  0%   { transform: scale(1.12); box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.4), 0 10px 26px rgba(0, 0, 0, 0.35); }
+  100% { transform: scale(1); box-shadow: inset 0 1px 0 rgba(255,255,255,0.04), 0 1px 2px rgba(0,0,0,0.12); }
+}
+
 /* Spymaster hints — a soft tinted glow rather than a hard ring, so the
    board still reads as "cards" and not a key sheet */
 .play-card-hint {
   border-width: 1px;
   box-shadow: inset 0 0 0 1px transparent, 0 0 0 3px transparent;
 }
-.play-card-hint-red { background: linear-gradient(180deg, var(--surface2), var(--red-dim)); border-color: rgba(232,84,84,0.55); box-shadow: 0 0 0 1px rgba(232,84,84,0.3); }
-.play-card-hint-blue { background: linear-gradient(180deg, var(--surface2), var(--blue-dim)); border-color: rgba(84,144,232,0.55); box-shadow: 0 0 0 1px rgba(84,144,232,0.3); }
+.play-card-hint-red { background: linear-gradient(180deg, var(--surface2), var(--red-strong)); border-color: var(--red); box-shadow: 0 0 0 1px var(--red-strong); }
+.play-card-hint-blue { background: linear-gradient(180deg, var(--surface2), var(--blue-strong)); border-color: var(--blue); box-shadow: 0 0 0 1px var(--blue-strong); }
 .play-card-hint-neutral { border-color: var(--border); }
 .play-card-hint-assassin { background: linear-gradient(180deg, var(--surface2), var(--surface2)); border-color: var(--text); box-shadow: 0 0 0 1px rgba(255,255,255,0.12); }
 
 .play-card-revealed {
   cursor: default;
+  border-width: 2px;
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.04), 0 1px 2px rgba(0,0,0,0.12);
 }
-.play-card-revealed .play-card-word { opacity: 0.55; }
-.play-card-red { background: linear-gradient(180deg, var(--red-dim), transparent 140%); border-color: var(--red); }
-.play-card-blue { background: linear-gradient(180deg, var(--blue-dim), transparent 140%); border-color: var(--blue); }
+.play-card-revealed .play-card-word { opacity: 0.7; }
+.play-card-red { background: linear-gradient(180deg, var(--red-strong), var(--red-dim)); border-color: var(--red); }
+.play-card-blue { background: linear-gradient(180deg, var(--blue-strong), var(--blue-dim)); border-color: var(--blue); }
 .play-card-neutral { background: var(--surface2); border-color: var(--border); }
 .play-card-neutral .play-card-word { opacity: 0.4; }
 .play-card-assassin { background: var(--text); border-color: var(--text); }
-.play-card-assassin .play-card-word { color: var(--bg); opacity: 0.85; }
+.play-card-assassin .play-card-word { color: var(--bg); opacity: 0.9; }
 
 .play-clue-form { display: flex; gap: 10px; align-items: center; }
 
