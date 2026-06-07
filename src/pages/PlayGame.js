@@ -288,6 +288,52 @@ function RosterRole({ label, roleKey, side, players, me, busy, onJoin, singleSlo
   )
 }
 
+// Briefly true right after `value` changes — drives one-shot "something
+// changed" animations (e.g. flashing the turn banner when the turn passes).
+function useChangeFlash(value, duration = 700) {
+  const [flashing, setFlashing] = useState(false)
+  const prevRef = useRef(value)
+
+  useEffect(() => {
+    if (prevRef.current === value) return
+    prevRef.current = value
+    setFlashing(true)
+    const t = setTimeout(() => setFlashing(false), duration)
+    return () => clearTimeout(t)
+  }, [value, duration])
+
+  return flashing
+}
+
+// Tracks which board indices were *just* revealed (vs. already revealed on a
+// previous render) so newly-flipped cards can briefly pop instead of just
+// silently changing color.
+function useRevealFlashes(revealed, duration = 850) {
+  const [flashes, setFlashes] = useState(() => new Set())
+  const prevRef = useRef(revealed)
+
+  useEffect(() => {
+    const prev = prevRef.current
+    const justRevealed = revealed
+      .map((color, i) => (color && !prev[i] ? i : null))
+      .filter(i => i !== null)
+    prevRef.current = revealed
+    if (justRevealed.length === 0) return
+
+    setFlashes(prev => new Set([...prev, ...justRevealed]))
+    const t = setTimeout(() => {
+      setFlashes(prev => {
+        const next = new Set(prev)
+        justRevealed.forEach(i => next.delete(i))
+        return next
+      })
+    }, duration)
+    return () => clearTimeout(t)
+  }, [revealed, duration])
+
+  return flashes
+}
+
 // ── Active ───────────────────────────────────────────────────────────────────
 
 function ActiveView({ game, players, me, events, secretKey, busy, canCancel, onSubmitClue, onTapCard, onCancel }) {
@@ -296,6 +342,9 @@ function ActiveView({ game, players, me, events, secretKey, busy, canCancel, onS
   const totals = useMemo(() => sideTotals(game, secretKey), [game, secretKey])
 
   const lastClue = [...events].reverse().find(e => e.type === 'clue' && sinceLastTurnEnd(e, events))
+
+  const turnFlash = useChangeFlash(game.current_turn)
+  const revealFlashes = useRevealFlashes(game.revealed)
 
   let banner
   if (isMyTurn && isSpymaster) {
@@ -306,12 +355,16 @@ function ActiveView({ game, players, me, events, secretKey, busy, canCancel, onS
     banner = `${SIDE_LABEL[game.current_turn]}'s turn`
   }
 
+  const pillClasses = ['play-turn-pill', `play-turn-${game.current_turn}`]
+  if (isMyTurn) pillClasses.push('play-turn-pill-mine')
+  if (turnFlash) pillClasses.push('play-turn-flash')
+
   return (
     <div className="play-active">
       <ScoreBar game={game} totals={totals} />
 
       <div className="play-turn-banner">
-        <span className={`play-turn-pill play-turn-${game.current_turn}`}>{banner}</span>
+        <span className={pillClasses.join(' ')}>{banner}</span>
         {canCancel && (
           <button className="nav-link sign-out-btn" disabled={busy} onClick={onCancel}>Cancel game</button>
         )}
@@ -326,7 +379,7 @@ function ActiveView({ game, players, me, events, secretKey, busy, canCancel, onS
       )}
 
       <Board game={game} me={me} secretKey={secretKey} isSpymaster={isSpymaster}
-        canTap={!isSpymaster && isMyTurn && !!lastClue} busy={busy} onTapCard={onTapCard} />
+        canTap={!isSpymaster && isMyTurn && !!lastClue} busy={busy} onTapCard={onTapCard} revealFlashes={revealFlashes} />
 
       {isSpymaster && isMyTurn && (
         <ClueForm busy={busy} onSubmit={onSubmitClue} />
@@ -382,7 +435,7 @@ function ScoreBar({ game, totals }) {
   )
 }
 
-function Board({ game, me, secretKey, isSpymaster, canTap, busy, onTapCard }) {
+function Board({ game, me, secretKey, isSpymaster, canTap, busy, onTapCard, revealFlashes }) {
   return (
     <div className="play-board">
       {game.grid.map((word, i) => {
@@ -392,6 +445,7 @@ function Board({ game, me, secretKey, isSpymaster, canTap, busy, onTapCard }) {
         if (revealedColor) classes.push('play-card-revealed', `play-card-${revealedColor}`)
         else if (hintColor) classes.push('play-card-hint', `play-card-hint-${hintColor}`)
         if (canTap && !revealedColor) classes.push('play-card-tappable')
+        if (revealFlashes?.has(i)) classes.push('play-card-flash')
 
         return (
           <button
