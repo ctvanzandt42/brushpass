@@ -1018,6 +1018,7 @@ select option { background: var(--surface2); color: var(--text); }
 @media (max-width: 560px) { .play-board { gap: 6px; } }
 
 .play-card {
+  position: relative;
   aspect-ratio: 4 / 3;
   display: flex;
   align-items: center;
@@ -1054,6 +1055,44 @@ select option { background: var(--surface2); color: var(--text); }
   transform: translateY(-2px);
 }
 .play-card-tappable:active { transform: translateY(0) scale(0.97); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12); }
+
+/* Voting — operatives point at a card before anyone commits to the guess */
+.play-card-voted { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-dim); }
+.play-card-votes {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: flex;
+  gap: 3px;
+}
+.play-vote-badge {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.66rem;
+  font-weight: 800;
+  color: var(--bg);
+  background: var(--accent);
+  border: 1.5px solid var(--surface);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+.play-confirm-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  background: var(--surface);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  padding: 12px 18px;
+}
+.play-confirm-text { font-size: 0.92rem; font-weight: 700; }
+.play-confirm-banner .btn-magic { width: auto; padding: 9px 22px; }
 
 /* One-shot pop that plays on the card(s) just revealed, so a flip reads
    as an event rather than something you have to notice on your own */

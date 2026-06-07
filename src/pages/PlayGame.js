@@ -334,6 +334,66 @@ function useRevealFlashes(revealed, duration = 850) {
   return flashes
 }
 
+// Lightweight, ephemeral voting: operatives broadcast which card they're
+// pointing at over a side-scoped realtime channel (no DB writes — votes
+// reset themselves whenever the turn passes or a card gets revealed, so
+// there's nothing to persist or clean up).
+function useVotes(gameId, me, active, currentTurn, revealed) {
+  const [votes, setVotes] = useState({})
+  const channelRef = useRef(null)
+  const meRef = useRef(me)
+  meRef.current = me
+
+  useEffect(() => { setVotes({}) }, [currentTurn, revealed])
+
+  useEffect(() => {
+    if (!active || !me?.side) return
+    const channel = supabase
+      .channel(`live_game_votes:${gameId}:${me.side}`)
+      .on('broadcast', { event: 'vote' }, ({ payload }) => {
+        if (payload.profile_id === meRef.current?.profile_id) return
+        setVotes(prev => applyVote(prev, payload))
+      })
+      .subscribe()
+    channelRef.current = channel
+    return () => { supabase.removeChannel(channel); channelRef.current = null }
+  }, [gameId, me?.side, active])
+
+  const toggleVote = useCallback((index) => {
+    if (!me) return
+    const mine = voterCardIndex(votes, me.profile_id)
+    const payload = {
+      profile_id: me.profile_id,
+      display_name: me.profiles?.display_name || '?',
+      card_index: mine === index ? null : index,
+    }
+    channelRef.current?.send({ type: 'broadcast', event: 'vote', payload })
+    setVotes(prev => applyVote(prev, payload))
+  }, [me, votes])
+
+  return { votes, toggleVote }
+}
+
+function voterCardIndex(votes, profileId) {
+  for (const [index, voters] of Object.entries(votes)) {
+    if (voters.some(v => v.profile_id === profileId)) return Number(index)
+  }
+  return null
+}
+
+function applyVote(votes, { profile_id, display_name, card_index }) {
+  const next = {}
+  for (const [index, voters] of Object.entries(votes)) {
+    const kept = voters.filter(v => v.profile_id !== profile_id)
+    if (kept.length) next[index] = kept
+  }
+  if (card_index != null) {
+    const key = String(card_index)
+    next[key] = [...(next[key] || []), { profile_id, display_name }]
+  }
+  return next
+}
+
 // ── Active ───────────────────────────────────────────────────────────────────
 
 function ActiveView({ game, players, me, events, secretKey, busy, canCancel, onSubmitClue, onTapCard, onCancel }) {
@@ -342,9 +402,19 @@ function ActiveView({ game, players, me, events, secretKey, busy, canCancel, onS
   const totals = useMemo(() => sideTotals(game, secretKey), [game, secretKey])
 
   const lastClue = [...events].reverse().find(e => e.type === 'clue' && sinceLastTurnEnd(e, events))
+  const canVote = !isSpymaster && isMyTurn && !!lastClue
 
   const turnFlash = useChangeFlash(game.current_turn)
   const revealFlashes = useRevealFlashes(game.revealed)
+  const { votes, toggleVote } = useVotes(game.id, me, canVote, game.current_turn, game.revealed)
+
+  const leadingVote = useMemo(() => {
+    let best = null
+    for (const [index, voters] of Object.entries(votes)) {
+      if (!best || voters.length > best.voters.length) best = { index: Number(index), voters }
+    }
+    return best
+  }, [votes])
 
   let banner
   if (isMyTurn && isSpymaster) {
@@ -379,7 +449,18 @@ function ActiveView({ game, players, me, events, secretKey, busy, canCancel, onS
       )}
 
       <Board game={game} me={me} secretKey={secretKey} isSpymaster={isSpymaster}
-        canTap={!isSpymaster && isMyTurn && !!lastClue} busy={busy} onTapCard={onTapCard} revealFlashes={revealFlashes} />
+        canVote={canVote} busy={busy} onCardClick={toggleVote} votes={votes} revealFlashes={revealFlashes} />
+
+      {canVote && leadingVote && (
+        <div className="play-confirm-banner">
+          <span className="play-confirm-text">
+            🗳️ {leadingVote.voters.length} {leadingVote.voters.length === 1 ? 'vote' : 'votes'} for "{game.grid[leadingVote.index]}"
+          </span>
+          <button className="btn-magic" disabled={busy} onClick={() => onTapCard(leadingVote.index)}>
+            Confirm guess
+          </button>
+        </div>
+      )}
 
       {isSpymaster && isMyTurn && (
         <ClueForm busy={busy} onSubmit={onSubmitClue} />
@@ -435,27 +516,39 @@ function ScoreBar({ game, totals }) {
   )
 }
 
-function Board({ game, me, secretKey, isSpymaster, canTap, busy, onTapCard, revealFlashes }) {
+function Board({ game, me, secretKey, isSpymaster, canVote, busy, onCardClick, votes, revealFlashes }) {
   return (
     <div className="play-board">
       {game.grid.map((word, i) => {
         const revealedColor = game.revealed[i]
         const hintColor = isSpymaster && !revealedColor ? secretKey?.[i] : null
+        const voters = votes?.[i] || []
+        const iVoted = voters.some(v => v.profile_id === me?.profile_id)
         const classes = ['play-card']
         if (revealedColor) classes.push('play-card-revealed', `play-card-${revealedColor}`)
         else if (hintColor) classes.push('play-card-hint', `play-card-hint-${hintColor}`)
-        if (canTap && !revealedColor) classes.push('play-card-tappable')
+        if (canVote && !revealedColor) classes.push('play-card-tappable')
+        if (iVoted) classes.push('play-card-voted')
         if (revealFlashes?.has(i)) classes.push('play-card-flash')
 
         return (
           <button
             key={i}
             className={classes.join(' ')}
-            disabled={!canTap || !!revealedColor || busy}
-            onClick={() => onTapCard(i)}
+            disabled={!canVote || !!revealedColor || busy}
+            onClick={() => onCardClick(i)}
           >
             <span className="play-card-word">{word}</span>
             {revealedColor && <span className="play-card-icon">{COLOR_EMOJI[revealedColor]}</span>}
+            {voters.length > 0 && (
+              <span className="play-card-votes">
+                {voters.map(v => (
+                  <span key={v.profile_id} className="play-vote-badge" title={v.display_name}>
+                    {(v.display_name || '?').trim().charAt(0).toUpperCase()}
+                  </span>
+                ))}
+              </span>
+            )}
           </button>
         )
       })}
@@ -546,7 +639,7 @@ function FinishedView({ game, players, events, navigate }) {
         <p className="muted">Stats have been tallied and added to the leaderboard.</p>
       </div>
 
-      <Board game={game} me={null} secretKey={null} isSpymaster={false} canTap={false} busy onTapCard={() => {}} />
+      <Board game={game} me={null} secretKey={null} isSpymaster={false} canVote={false} busy onCardClick={() => {}} />
 
       <div className="play-lobby-actions">
         <button className="btn-magic" style={{ width: 'auto', padding: '11px 28px' }} onClick={() => navigate('/play')}>
